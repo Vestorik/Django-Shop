@@ -1,0 +1,26 @@
+
+[tool.poetry]
+name = "app"
+version = "0.1.1"
+description = "Django project"
+authors = ["Aleksandr <Aleksandrsein286@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+django = ">=5.2.9,<6.0.0"
+django-filter = ">=25.2,<26.0"
+djangorestframework = ">=3.16.1,<4.0.0"
+docutils = ">=0.22.3,<0.23.0"
+drf-spectacular = ">=0.29.0,<0.30.0"
+gunicorn = ">=23.0.0,<24.0.0"
+pillow = ">=12.0.0,<13.0.0"
+snowballstemmer = ">=3.0.1,<4.0.0"
+sqlparse = ">=0.5.4,<0.6.0"
+setuptools = ">=80.9.0,<81.0.0"
+diploma-frontend = { path = "diploma-frontend/dist/diploma_frontend-0.6.tar.gz" }
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
