@@ -17,17 +17,20 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView
-from goods.views import CatalogAPIView, ProductApiView, tags_api, categories_api, basket_api
+from goods.views import CatalogAPIView, ProductApiView, tags_api, basket_api, categories_api
 from django.views.generic import TemplateView
 
+
 urlpatterns = [
-    path('', TemplateView.as_view(template_name="frontend/index.html")), # доработать
+    path('index/', TemplateView.as_view(template_name="frontend/index.html")), # доработать
+    path('about/', TemplateView.as_view(template_name="frontend/about.html")),
     
-    # app
+    # APP
     path('admin/', admin.site.urls),
     path('', include("goods.urls")),
-    # path("", include("frontend.urls")),
-    
+    path('', include("cartpay.urls")),
+    path('', include("accounts.urls")),
+
     # API
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
@@ -37,5 +40,4 @@ urlpatterns = [
     path('api/tags', tags_api, name='tags_api'),
     path('api/categories', categories_api, name='categories_api'),
     path('api/basket', basket_api, name='basket_api'),
-    
 ]

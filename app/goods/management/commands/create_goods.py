@@ -1,6 +1,6 @@
 from typing import Any
 from django.core.management import BaseCommand
-from goods.models import Product, Comment, Tag, ProductSpecification
+from app.goods.models.product_models import Product, Comment, Tag, ProductSpecification
 from django.contrib.auth.models import User
 
 
@@ -13,7 +13,7 @@ class Command(BaseCommand):
 
         # create user
         user, created = User.objects.get_or_create(
-            username="testuser",
+            username=f"testuser{1}",
             defaults={
                 "email": "test@example.com",
                 "is_active": True,

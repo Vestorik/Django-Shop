@@ -1,0 +1,192 @@
+{% extends "frontend/base.html" %}
+{% load static %}
+
+{# Блок контента для страницы каталога #}
+{% block content %}
+  <div class="Middle Middle_top">
+    <div class="Middle-top">
+      <div class="wrap">
+        <!-- Хлебные крошки и заголовок -->
+        <div class="Middle-header">
+          <h1 class="Middle-title">Catalog Megano</h1>
+          <ul class="breadcrumbs Middle-breadcrumbs">
+            <li class="breadcrumbs-item"><a href="/">Home</a></li>
+            <li class="breadcrumbs-item breadcrumbs-item_current"><span>Каталог</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    
+    <div class="Section Section_column Section_columnLeft">
+      <div class="wrap">
+        <!-- Левая колонка с фильтрами -->
+        <div class="Section-column">
+          
+          <!-- Блок фильтров -->
+          <div class="Section-columnSection">
+            <header class="Section-header">
+              <strong class="Section-title">Фильтр</strong>
+            </header>
+            <div class="Section-columnContent">
+              <!-- Форма фильтрации -->
+              <form class="form" @submit.prevent="getCatalogs(1)">
+                <!-- Фильтр по цене -->
+                <div class="form-group">
+                  <div class="range Section-columnRange">
+                    <input class="range-line" id="price" name="price" type="text" 
+                           data-type="double" 
+                           :data-min="filters.price.minValue" 
+                           :data-max="filters.price.maxValue" 
+                           :data-from="filter.minPrice" 
+                           :data-to="filter.maxPrice" />
+                    <input type="hidden" name="minPrice" v-model="filter.minPrice" />
+                    <input type="hidden" name="maxPrice" v-model="filter.maxPrice" />
+                    <div class="range-price">Price: <div class="rangePrice"></div></div>
+                  </div>
+                </div>
+                
+                <!-- Фильтр по названию -->
+                <div class="form-group">
+                  <input class="form-input form-input_full" id="title" name="title" 
+                         type="text" v-model="filter.name" placeholder="Название" />
+                </div>
+                
+                <!-- Фильтр по наличию -->
+                <div class="form-group">
+                  <label class="toggle">
+                    <input type="checkbox" name="available" v-model="filter.available" />
+                    <span class="toggle-box"></span>
+                    <span class="toggle-text">Только товары в наличии</span>
+                  </label>
+                </div>
+                
+                <!-- Фильтр по бесплатной доставке -->
+                <div class="form-group">
+                  <label class="toggle">
+                    <input type="checkbox" name="freeDelivery" v-model="filter.freeDelivery" />
+                    <span class="toggle-box"></span>
+                    <span class="toggle-text">С бесплатной доставкой</span>
+                  </label>
+                </div>
+                
+                <!-- Кнопка фильтрации -->
+                <div class="form-group">
+                  <div class="buttons">
+                    <button type="submit" class="btn btn_square btn_dark btn_narrow">Фильтровать</button>
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
+          
+          <!-- Блок популярных тегов -->
+          <div class="Section-columnSection">
+            <header class="Section-header">
+              <strong class="Section-title">Популярные теги</strong>
+            </header>
+            <div class="Section-columnContent">
+              <div class="buttons">
+                <!-- Динамические кнопки тегов -->
+                <button v-for="tag in topTags" 
+                        :key="tag.id" 
+                        :class="['btn btn_sm', tag.selected ? 'btn_warning' : 'btn_default']" 
+                        @click="setTag(tag.id)">
+                  {{ tag.name }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Правая колонка с контентом -->
+        <div class="Section-content">
+          
+          <!-- Блок сортировки -->
+          <div class="Sort">
+            <div class="Sort-title">Сортировать по:</div>
+            <div class="Sort-variants">
+              <!-- Опции сортировки -->
+              <div v-for="sort in sortRules" 
+                   :key="sort.id" 
+                   :id="sort.id" 
+                   class="Sort-sortBy" 
+                   :class="[selectedSort && sort.id === selectedSort.id ? `Sort-sortBy_${selectedSort.selected}` : null]" 
+                   @click="setSort(sort.id)">
+                {{ sort.title }}
+              </div>
+            </div>
+          </div>
+          
+          <!-- Сетка карточек товаров -->
+          <div class="Cards">
+            <!-- Карточки товаров -->
+            <div v-for="card in catalogCards" 
+                 class="Card" 
+                 :key="card.id" 
+                 v-if="catalogCards.length > 0">
+              <a class="Card-picture" :href="`/product/${card.id}/`">
+                <!-- Защита от отсутствующих изображений -->
+                <img :src="card.images && card.images.length > 0 ? card.images[0].src : ''" 
+                     :alt="card.images && card.images.length > 0 ? card.images[0].alt : 'No image'" />
+              </a>
+              <div class="Card-content">
+                <strong class="Card-title">
+                  <a :href="`/product/${card.id}/`">{{ card.title }}</a>
+                </strong>
+                <div class="Card-description">
+                  <div class="Card-cost">
+                    <span class="Card-price">${{ card.price }}</span>
+                  </div>
+                  <div class="Card-hover">
+                    <!-- Кнопка добавления в корзину -->
+                    <a class="Card-btn" @click="addToBasket(card)">
+                      <img src="{% static 'frontend/assets/img/icons/card/cart.svg' %}" alt="cart.svg" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Заглушка при отсутствии товаров -->
+            <div v-if="catalogCards.length === 0" class="Cards-empty">
+              <p>Товары не найдены</p>
+            </div>
+          </div>
+          
+          <!-- Пагинация -->
+          <div class="Pagination" v-if="catalogCards.length > 0">
+            <div class="Pagination-ins">
+              <!-- Кнопка "Первая страница" -->
+              <a class="Pagination-element Pagination-element_prev" 
+                 @click.prevent="getCatalogs(1)" 
+                 href="#">
+                <img src="{% static 'frontend/assets/img/icons/prevPagination.svg' %}" alt="prevPagination.svg" />
+              </a>
+              
+              <!-- Номера страниц -->
+              <a v-for="page in lastPage" 
+                 class="Pagination-element" 
+                 :class="{'Pagination-element_current': page == currentPage}" 
+                 @click.prevent="getCatalogs(page)" 
+                 href="#">
+                <span class="Pagination-text">{{page}}</span>
+              </a>
+              
+              <!-- Кнопка "Последняя страница" -->
+              <a class="Pagination-element Pagination-element_prev" 
+                 @click.prevent="getCatalogs(lastPage)" 
+                 href="#">
+                <img src="{% static 'frontend/assets/img/icons/nextPagination.svg' %}" alt="nextPagination.svg" />
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{# Блок для подключения специфических скриптов #}
+{% block mixins %}
+<script src="{% static 'frontend/assets/js/catalog.js' %}"></script>
+{% endblock %}
