@@ -231,10 +231,11 @@ def create_test_product(
         )
 
         # Создаем тег для продукта
-        tag, tag_created = get_or_create_simple_test_object(name_tag)
+        tag, tag_created = get_or_create_simple_test_object('tag', obj_name=name_tag)
+        stdout.write(style.SUCCESS(f"{name_tag} {tag_created}"))
         if tag:
             product.tags.add(tag)
-
+            stdout.write(style.SUCCESS(f"{name_tag} added"))
         # Создаем характеристики для продукта
 
         spec_value = f"Test 100% {product_number}"

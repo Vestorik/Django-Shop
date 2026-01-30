@@ -16,6 +16,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from .models import Product, Tag, Category
 from .serializers import ProductSerializer
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 
 # Пагинация
@@ -64,112 +65,194 @@ class ProductView(TemplateView):
 
 
 @method_decorator(csrf_exempt, name="dispatch")
+@extend_schema(
+    tags=["catalog"],
+    parameters=[
+        OpenApiParameter(
+            name="filter[name]",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Поиск по названию",
+        ),
+        OpenApiParameter(
+            name="filter[minPrice]",
+            type=float,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Минимальная цена",
+        ),
+        OpenApiParameter(
+            name="filter[maxPrice]",
+            type=float,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Максимальная цена",
+        ),
+        OpenApiParameter(
+            name="filter[freeDelivery]",
+            type=bool,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Только с бесплатной доставкой",
+        ),
+        OpenApiParameter(
+            name="filter[available]",
+            type=bool,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Только доступные товары",
+        ),
+        OpenApiParameter(
+            name="category",
+            type=int,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="ID категории",
+        ),
+        OpenApiParameter(
+            name="sort",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            enum=["rating", "price", "reviews", "date"],
+            description="Поле для сортировки",
+        ),
+        OpenApiParameter(
+            name="sortType",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            enum=["dec", "inc"],
+            description="Направление сортировки",
+        ),
+        OpenApiParameter(
+            name="tags",
+            type={"type": "array", "items": {"type": "integer"}},
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Теги",
+        ),
+        OpenApiParameter(
+            name="limit",
+            type=int,
+            location=OpenApiParameter.QUERY,
+            required=False,
+            description="Количество элементов на странице",
+        ),
+    ],
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/Product"},
+                },
+                "currentPage": {"type": "integer"},
+                "lastPage": {"type": "integer"},
+                "total": {"type": "integer"},
+            },
+        }
+    },
+)
 class CatalogAPIView(APIView):
     """
     API для работы с каталогом товаров.
-    
+
     Поддерживает GET и POST запросы для получения отфильтрованных и отсортированных товаров.
     Реализует пагинацию, фильтрацию по различным критериям и сортировку.
     """
-    
+
     def get(self, request):
         """Обработка GET запросов"""
         return self.process_request(request, request.query_params)
-    
+
     def post(self, request):
         """Обработка POST запросов"""
         return self.process_request(request, request.data)
-    
+
     def process_request(self, request, params):
         """
         Основной метод обработки запроса.
-        
+
         Args:
             request: HTTP запрос
             params: Параметры запроса (из query_params или data)
-            
+
         Returns:
             Response: JSON ответ с товарами и метаданными пагинации
         """
         try:
             # Получаем базовый queryset с предзагрузкой связанных данных
             queryset = self.get_base_queryset()
-            
+
             # Применяем фильтры
             queryset = self.apply_filters(queryset, params)
-            
+
             # Применяем сортировку
             queryset = self.apply_sorting(queryset, params)
-            
+
             # Пагинация
             return self.paginate_and_respond(queryset, request)
-            
+
         except Exception as e:
             # Логируем ошибку (в реальном проекте используйте proper logging)
             print(f"Error in CatalogAPIView: {str(e)}")
             return Response(
-                {
-                    "items": [],
-                    "currentPage": 1,
-                    "lastPage": 1,
-                    "total": 0
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"items": [], "currentPage": 1, "lastPage": 1, "total": 0},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-    
+
     def get_base_queryset(self):
         """
         Возвращает базовый queryset с предзагрузкой связанных данных.
-        
+
         Returns:
             QuerySet: Базовый queryset продуктов
         """
         return Product.objects.filter(is_active=True).prefetch_related(
-            "images", 
-            "tags", 
-            "specifications",
-            "category",
-            "comments"
+            "images", "tags", "specifications", "category", "comments"
         )
-    
+
     def apply_filters(self, queryset, params):
         """
         Применяет фильтры к queryset.
-        
+
         Args:
             queryset: Исходный queryset
             params: Параметры фильтрации
-            
+
         Returns:
             QuerySet: Отфильтрованный queryset
         """
         # Поиск по названию
         if filter_name := params.get("filter"):
             queryset = queryset.filter(name__icontains=filter_name)
-        
+
         # Фильтрация по цене
         if min_price := params.get("minPrice"):
             try:
                 queryset = queryset.filter(price__gte=float(min_price))
             except (ValueError, TypeError):
                 pass
-                
+
         if max_price := params.get("maxPrice"):
             try:
                 queryset = queryset.filter(price__lte=float(max_price))
             except (ValueError, TypeError):
                 pass
-        
+
         # Фильтрация по наличию
         if available := params.get("available"):
             if available in ["true", True, "1"]:
                 queryset = queryset.filter(quantity__gt=0)
-        
+
         # Фильтрация по бесплатной доставке
         if free_delivery := params.get("freeDelivery"):
             if free_delivery in ["true", True, "1"]:
                 queryset = queryset.filter(free_delivery=True)
-        
+
         # Фильтрация по категории
         if category_id := params.get("category"):
             if category_id not in ["null", "", None]:
@@ -177,7 +260,7 @@ class CatalogAPIView(APIView):
                     queryset = queryset.filter(category__id=int(category_id))
                 except (ValueError, TypeError):
                     pass
-        
+
         # Фильтрация по тегам
         tags = self.get_tags_from_params(params)
         for tag_id in tags:
@@ -185,21 +268,21 @@ class CatalogAPIView(APIView):
                 queryset = queryset.filter(tags__id=int(tag_id))
             except (ValueError, TypeError):
                 pass
-        
+
         return queryset
-    
+
     def get_tags_from_params(self, params):
         """
         Извлекает ID тегов из параметров запроса.
-        
+
         Args:
             params: Параметры запроса
-            
+
         Returns:
             list: Список ID тегов
         """
         tags = []
-        
+
         if hasattr(params, "getlist"):
             # QueryDict (GET запрос)
             tags = params.getlist("tags")
@@ -210,23 +293,23 @@ class CatalogAPIView(APIView):
                 tags = tags_data
             elif tags_data:
                 tags = [tags_data]
-                
+
         return tags
-    
+
     def apply_sorting(self, queryset, params):
         """
         Применяет сортировку к queryset.
-        
+
         Args:
             queryset: Исходный queryset
             params: Параметры сортировки
-            
+
         Returns:
             QuerySet: Отсортированный queryset
         """
         sort_field = params.get("sort", "date")
         sort_type = params.get("sortType", "desc")
-        
+
         # Определяем поле для сортировки
         sort_mapping = {
             "price": "price",
@@ -234,9 +317,9 @@ class CatalogAPIView(APIView):
             "reviews": "number_comments",
             "date": "created_at",
         }
-        
+
         order_by_field = sort_mapping.get(sort_field, "created_at")
-        
+
         # Для сортировки по цене со скидкой используем аннотацию
         if sort_field == "final_price":
             queryset = queryset.annotate(
@@ -247,51 +330,100 @@ class CatalogAPIView(APIView):
                 )
             )
             order_by_field = "final_price_calc"
-        
+
         # Определяем направление сортировки
         prefix = "-" if sort_type == "dec" else ""
-        
+
         try:
             return queryset.order_by(f"{prefix}{order_by_field}")
         except:
             # В случае ошибки возвращаем сортировку по умолчанию
             return queryset.order_by("-created_at")
-    
+
     def paginate_and_respond(self, queryset, request):
         """
         Выполняет пагинацию и формирует ответ.
-        
+
         Args:
             queryset: QuerySet для пагинации
             request: HTTP запрос
-            
+
         Returns:
             Response: JSON ответ с пагинированными данными
         """
         paginator = StandardResultsSetPagination()
-        
+
         try:
             page = paginator.paginate_queryset(queryset, request)
-            serializer = ProductSerializer(page, many=True, context={"request": request})
-            
-            return Response(OrderedDict([
-                ("items", serializer.data),
-                ("currentPage", paginator.page.number),
-                ("lastPage", paginator.page.paginator.num_pages),
-                ("total", paginator.page.paginator.count),
-            ]))
-            
+            serializer = ProductSerializer(
+                page, many=True, context={"request": request}
+            )
+
+            return Response(
+                OrderedDict(
+                    [
+                        ("items", serializer.data),
+                        ("currentPage", paginator.page.number),
+                        ("lastPage", paginator.page.paginator.num_pages),
+                        ("total", paginator.page.paginator.count),
+                    ]
+                )
+            )
+
         except Exception as e:
             # Если ошибка пагинации, возвращаем пустой результат
-            return Response(OrderedDict([
-                ("items", []),
-                ("currentPage", 1),
-                ("lastPage", 1),
-                ("total", 0),
-            ]))
+            return Response(
+                OrderedDict(
+                    [
+                        ("items", []),
+                        ("currentPage", 1),
+                        ("lastPage", 1),
+                        ("total", 0),
+                    ]
+                )
+            )
 
 
-
+@extend_schema(
+    tags=["products"],
+    parameters=[
+        OpenApiParameter(
+            name="id",
+            type=int,
+            location=OpenApiParameter.PATH,
+            required=True,
+            description="ID товара",
+        ),
+    ],
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "id": {"type": "integer"},
+                "name": {"type": "string"},
+                "price": {"type": "number"},
+                "count": {"type": "integer"},
+                "category": {"type": "string"},
+                "image": {"type": "string"},
+                "free_delivery": {"type": "boolean"},
+                "rating": {"type": "number"},
+                "reviews": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "author": {"type": "string"},
+                            "email": {"type": "string"},
+                            "text": {"type": "string"},
+                            "rate": {"type": "integer"},
+                            "date": {"type": "string"},
+                        },
+                    },
+                },
+            },
+        }
+    },
+)
 class ProductApiView(APIView):
 
     def get(self, request, id):
@@ -306,12 +438,67 @@ class ProductApiView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=["tags"],
+    responses={
+        200: {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "name": {"type": "string"},
+                    "selected": {"type": "boolean"},
+                },
+            },
+        }
+    },
+)
 @api_view(["GET"])
 def tags_api(request):
     tags = Tag.objects.all().values("id", "name")
     return Response([{**tag, "selected": False} for tag in tags])
 
 
+@extend_schema(
+    tags=["categories"],
+    responses={
+        200: {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "title": {"type": "string"},
+                    "image": {
+                        "type": "object",
+                        "properties": {
+                            "src": {"type": "string"},
+                            "alt": {"type": "string"},
+                        },
+                    },
+                    "subcategories": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {"type": "integer"},
+                                "title": {"type": "string"},
+                                "image": {
+                                    "type": "object",
+                                    "properties": {
+                                        "src": {"type": "string"},
+                                        "alt": {"type": "string"},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        }
+    },
+)
 @api_view(["GET"])
 def categories_api(request):
     categories = Category.objects.prefetch_related(
@@ -356,6 +543,39 @@ def categories_api(request):
     return Response([build_category_tree(cat) for cat in categories])  # или пусто
 
 
+@extend_schema(
+    tags=["basket"],
+    responses={
+        200: {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "integer"},
+                            "name": {"type": "string"},
+                            "price": {"type": "number"},
+                            "count": {"type": "integer"},
+                            "images": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "src": {"type": "string"},
+                                        "alt": {"type": "string"},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+                "total": {"type": "number"},
+            },
+        }
+    },
+)
 @api_view(["GET"])
 def basket_api(request):
     return Response({"items": [], "total": 0})
