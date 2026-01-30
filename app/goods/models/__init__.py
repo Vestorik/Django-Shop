@@ -4,6 +4,7 @@
 
 from .product_models import Product, ProductImage, ProductSpecification, Tag, Comment, Category
 from .order_models import Order, OrderItem, OrderStatus
+from .basket_models import Basket
 
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     'Order',
     'OrderItem',
     'OrderStatus',
+    'Basket',
 ]
